@@ -1,0 +1,20 @@
+name: deal_or_not
+description: A smart, cross-platform app that helps you choose the best deal in-store.
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  image_picker: ^0.8.7+4
+  flutter_svg: ^2.0.7
+  provider: ^6.0.5
+  uuid: ^4.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  uses-material-design: true
