@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 void main() {
   runApp(const DealOrNotApp());
@@ -9,12 +12,36 @@ class DealOrNotApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Deal or Not',
-      home: const DealOrNotHomePage(),
-      debugShowCheckedModeBanner: false,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => DealOptionsProvider()),
+      ],
+      child: MaterialApp(
+        title: 'Deal or Not',
+        home: const DealOrNotHomePage(),
+        debugShowCheckedModeBanner: false,
+      ),
     );
   }
+}
+
+class DealOptionsProvider extends ChangeNotifier {
+  final List<DealOptionData> options = [DealOptionData(), DealOptionData()];
+
+  void updateOption(int index, DealOptionData data) {
+    options[index] = data;
+    notifyListeners();
+  }
+}
+
+class DealOptionData {
+  String? name;
+  double? price;
+  double? amount;
+  File? image;
+  String? barcode;
+
+  DealOptionData({this.name, this.price, this.amount, this.image, this.barcode});
 }
 
 class DealOrNotHomePage extends StatelessWidget {
@@ -23,56 +50,186 @@ class DealOrNotHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
+      backgroundColor: const Color(0xFFF7F2FA),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        title: const Text('Deal or Not', style: TextStyle(color: Colors.deepPurple)),
+      ),
+      body: Consumer<DealOptionsProvider>(
+        builder: (context, optionsProvider, child) {
+          return Column(
+            children: [
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: optionsProvider.options.length,
+                  itemBuilder: (context, index) {
+                    return Container(
+                      width: MediaQuery.of(context).size.width * 0.85,
+                      margin: EdgeInsets.symmetric(horizontal: 12),
+                      child: DealOptionCard(
+                        index: index,
+                        data: optionsProvider.options[index],
+                        onChanged: (data) => optionsProvider.updateOption(index, data),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () {
+                  final deals = optionsProvider.options;
+                  String result;
+                  if (deals[0].price != null && deals[0].amount != null && deals[1].price != null && deals[1].amount != null) {
+                    double value0 = deals[0].price! / deals[0].amount!;
+                    double value1 = deals[1].price! / deals[1].amount!;
+                    result = value0 < value1 ? "Option 1 is the better deal" : "Option 2 is the better deal";
+                  } else {
+                    result = "Please fill in price and amount for both options.";
+                  }
+                  showDialog(context: context, builder: (_) => AlertDialog(title: Text("Deal Result"), content: Text(result)));
+                },
+                child: const Text('Compare Deals'),
+              ),
+              const SizedBox(height: 32),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class DealOptionCard extends StatefulWidget {
+  final int index;
+  final DealOptionData data;
+  final ValueChanged<DealOptionData> onChanged;
+
+  const DealOptionCard({super.key, required this.index, required this.data, required this.onChanged});
+
+  @override
+  State<DealOptionCard> createState() => _DealOptionCardState();
+}
+
+class _DealOptionCardState extends State<DealOptionCard> {
+  late TextEditingController nameController;
+  late TextEditingController priceController;
+  late TextEditingController amountController;
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(text: widget.data.name);
+    priceController = TextEditingController(text: widget.data.price?.toString() ?? '');
+    amountController = TextEditingController(text: widget.data.amount?.toString() ?? '');
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    priceController.dispose();
+    amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        widget.onChanged(
+          DealOptionData(
+            name: nameController.text,
+            price: double.tryParse(priceController.text),
+            amount: double.tryParse(amountController.text),
+            image: File(pickedFile.path),
+            barcode: widget.data.barcode,
+          ),
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(18.0),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 24.0, bottom: 16.0),
-              child: Text(
-                'dev',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.redAccent,
-                  letterSpacing: 4,
+            Text('Option ${widget.index + 1}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.deepPurple)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Product Name'),
+              onChanged: (_) => widget.onChanged(
+                DealOptionData(
+                  name: nameController.text,
+                  price: double.tryParse(priceController.text),
+                  amount: double.tryParse(amountController.text),
+                  image: widget.data.image,
+                  barcode: widget.data.barcode,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Center(
-                child: Text(
-                  'Welcome to Deal or Not!',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
+            const SizedBox(height: 10),
+            TextField(
+              controller: priceController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Price'),
+              onChanged: (_) => widget.onChanged(
+                DealOptionData(
+                  name: nameController.text,
+                  price: double.tryParse(priceController.text),
+                  amount: double.tryParse(amountController.text),
+                  image: widget.data.image,
+                  barcode: widget.data.barcode,
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 40.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: ElevatedButton(
-                        onPressed: () {},
-                        child: const Text('Option 1'),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: ElevatedButton(
-                        onPressed: () {},
-                        child: const Text('Option 2'),
-                      ),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 10),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Amount'),
+              onChanged: (_) => widget.onChanged(
+                DealOptionData(
+                  name: nameController.text,
+                  price: double.tryParse(priceController.text),
+                  amount: double.tryParse(amountController.text),
+                  image: widget.data.image,
+                  barcode: widget.data.barcode,
+                ),
               ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: pickImage,
+                  icon: const Icon(Icons.image),
+                  label: const Text('Add Photo'),
+                ),
+                if (widget.data.image != null)
+                  SizedBox(
+                    width: 60,
+                    height: 60,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(widget.data.image!, fit: BoxFit.cover),
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
