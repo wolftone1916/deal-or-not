@@ -27,10 +27,25 @@ class DealOrNotApp extends StatelessWidget {
 
 class DealOptionsProvider extends ChangeNotifier {
   final List<DealOptionData> options = [DealOptionData(), DealOptionData()];
+  int get maxOptions => 10;
 
   void updateOption(int index, DealOptionData data) {
     options[index] = data;
     notifyListeners();
+  }
+
+  void addOption() {
+    if (options.length < maxOptions) {
+      options.add(DealOptionData());
+      notifyListeners();
+    }
+  }
+
+  void removeOption(int index) {
+    if (options.length > 2 && index >= 2 && index < options.length) {
+      options.removeAt(index);
+      notifyListeners();
+    }
   }
 }
 
@@ -65,15 +80,43 @@ class DealOrNotHomePage extends StatelessWidget {
               Expanded(
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  itemCount: optionsProvider.options.length,
+                  itemCount: optionsProvider.options.length + (optionsProvider.options.length < optionsProvider.maxOptions ? 1 : 0),
                   itemBuilder: (context, index) {
+                    // Add Item Card
+                    if (index == optionsProvider.options.length && optionsProvider.options.length < optionsProvider.maxOptions) {
+                      return Container(
+                        width: MediaQuery.of(context).size.width * 0.6,
+                        margin: const EdgeInsets.symmetric(horizontal: 12),
+                        child: AddItemCard(
+                          onAdd: optionsProvider.addOption,
+                        ),
+                      );
+                    }
+                    // Deal Option Cards
                     return Container(
                       width: MediaQuery.of(context).size.width * 0.85,
-                      margin: EdgeInsets.symmetric(horizontal: 12),
-                      child: DealOptionCard(
-                        index: index,
-                        data: optionsProvider.options[index],
-                        onChanged: (data) => optionsProvider.updateOption(index, data),
+                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Stack(
+                        children: [
+                          DealOptionCard(
+                            index: index,
+                            data: optionsProvider.options[index],
+                            onChanged: (data) => optionsProvider.updateOption(index, data),
+                          ),
+                          if (index >= 2) // Show remove 'X' only for options beyond the first two
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: GestureDetector(
+                                onTap: () => optionsProvider.removeOption(index),
+                                child: const CircleAvatar(
+                                  radius: 13,
+                                  backgroundColor: Colors.redAccent,
+                                  child: Icon(Icons.close, size: 16, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     );
                   },
@@ -84,14 +127,15 @@ class DealOrNotHomePage extends StatelessWidget {
                 onPressed: () {
                   final deals = optionsProvider.options;
                   String result;
-                  if (deals[0].price != null && deals[0].amount != null && deals[1].price != null && deals[1].amount != null) {
+                  // Only compare first two options for now
+                  if (deals.length >= 2 && deals[0].price != null && deals[0].amount != null && deals[1].price != null && deals[1].amount != null) {
                     double value0 = deals[0].price! / deals[0].amount!;
                     double value1 = deals[1].price! / deals[1].amount!;
                     result = value0 < value1 ? "Option 1 is the better deal" : "Option 2 is the better deal";
                   } else {
                     result = "Please fill in price and amount for both options.";
                   }
-                  showDialog(context: context, builder: (_) => AlertDialog(title: Text("Deal Result"), content: Text(result)));
+                  showDialog(context: context, builder: (_) => AlertDialog(title: const Text("Deal Result"), content: Text(result)));
                 },
                 child: const Text('Compare Deals'),
               ),
@@ -99,6 +143,38 @@ class DealOrNotHomePage extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class AddItemCard extends StatelessWidget {
+  final VoidCallback onAdd;
+  const AddItemCard({super.key, required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: InkWell(
+        onTap: onAdd,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 28.0, horizontal: 10.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Add Item', style: TextStyle(fontSize: 16, color: Colors.deepPurple, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 18),
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.deepPurple,
+                child: const Icon(Icons.add, size: 36, color: Colors.white),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
