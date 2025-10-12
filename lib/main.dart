@@ -25,6 +25,43 @@ class DealOrNotApp extends StatelessWidget {
   }
 }
 
+enum UnitType { oz, g, lbs, kg, ml, l }
+
+double convertToBase(UnitType unit, double value) {
+  // All weight units to grams, all volume units to milliliters
+  switch (unit) {
+    case UnitType.oz:
+      return value * 28.3495; // oz to grams
+    case UnitType.lbs:
+      return value * 453.592; // lbs to grams
+    case UnitType.kg:
+      return value * 1000.0; // kg to grams
+    case UnitType.g:
+      return value; // grams
+    case UnitType.ml:
+      return value; // milliliters
+    case UnitType.l:
+      return value * 1000.0; // liters to milliliters
+  }
+}
+
+String unitTypeLabel(UnitType unit) {
+  switch (unit) {
+    case UnitType.oz:
+      return "oz";
+    case UnitType.lbs:
+      return "lbs";
+    case UnitType.kg:
+      return "kg";
+    case UnitType.g:
+      return "g";
+    case UnitType.ml:
+      return "ml";
+    case UnitType.l:
+      return "l";
+  }
+}
+
 class DealOptionsProvider extends ChangeNotifier {
   final List<DealOptionData> options = [DealOptionData(), DealOptionData()];
   int get maxOptions => 10;
@@ -51,12 +88,42 @@ class DealOptionsProvider extends ChangeNotifier {
 
 class DealOptionData {
   String? name;
-  double? price;
+  int? quantity;
   double? amount;
+  UnitType unit;
+  double? price;
   File? image;
   String? barcode;
 
-  DealOptionData({this.name, this.price, this.amount, this.image, this.barcode});
+  DealOptionData({
+    this.name,
+    this.quantity,
+    this.amount,
+    this.unit = UnitType.oz,
+    this.price,
+    this.image,
+    this.barcode,
+  });
+
+  DealOptionData copyWith({
+    String? name,
+    int? quantity,
+    double? amount,
+    UnitType? unit,
+    double? price,
+    File? image,
+    String? barcode,
+  }) {
+    return DealOptionData(
+      name: name ?? this.name,
+      quantity: quantity ?? this.quantity,
+      amount: amount ?? this.amount,
+      unit: unit ?? this.unit,
+      price: price ?? this.price,
+      image: image ?? this.image,
+      barcode: barcode ?? this.barcode,
+    );
+  }
 }
 
 class DealOrNotHomePage extends StatefulWidget {
@@ -72,11 +139,10 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
   void scrollToNewItem(int newItemIndex, BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final screenWidth = MediaQuery.of(context).size.width;
-      final cardWidth = screenWidth * 0.85 + 24; // card + margin
+      final cardWidth = screenWidth * 0.85 + 24;
       final addItemWidth = screenWidth * 0.6 + 24;
       final visibleWidth = screenWidth;
 
-      // Center the new card, but keep some of AddItem showing
       double offset = cardWidth * newItemIndex - (visibleWidth - cardWidth) / 2;
       double maxOffset = _scrollController.position.maxScrollExtent - addItemWidth * 0.4;
       if (offset > maxOffset) offset = maxOffset;
@@ -88,6 +154,25 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  String getComparison(DealOptionData a, DealOptionData b) {
+    if (a.price == null || a.amount == null || a.quantity == null || b.price == null || b.amount == null || b.quantity == null) {
+      return "Please fill in all fields for both options.";
+    }
+    // Normalize to price per base unit per item
+    double aBaseAmount = convertToBase(a.unit, a.amount!);
+    double bBaseAmount = convertToBase(b.unit, b.amount!);
+    double aPerUnit = a.price! / (aBaseAmount * (a.quantity ?? 1));
+    double bPerUnit = b.price! / (bBaseAmount * (b.quantity ?? 1));
+
+    if (aPerUnit < bPerUnit) {
+      return "Option 1 is the better deal";
+    } else if (bPerUnit < aPerUnit) {
+      return "Option 2 is the better deal";
+    } else {
+      return "Both options are the same deal";
+    }
   }
 
   @override
@@ -111,7 +196,6 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                   scrollDirection: Axis.horizontal,
                   itemCount: optionsProvider.options.length + (optionsProvider.options.length < optionsProvider.maxOptions ? 1 : 0),
                   itemBuilder: (context, index) {
-                    // Add Item Card
                     if (index == optionsProvider.options.length && optionsProvider.options.length < optionsProvider.maxOptions) {
                       return Container(
                         width: MediaQuery.of(context).size.width * 0.6,
@@ -124,7 +208,6 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                         ),
                       );
                     }
-                    // Deal Option Cards
                     return Container(
                       width: MediaQuery.of(context).size.width * 0.85,
                       margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -159,12 +242,10 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                 onPressed: () {
                   final deals = optionsProvider.options;
                   String result;
-                  if (deals.length >= 2 && deals[0].price != null && deals[0].amount != null && deals[1].price != null && deals[1].amount != null) {
-                    double value0 = deals[0].price! / deals[0].amount!;
-                    double value1 = deals[1].price! / deals[1].amount!;
-                    result = value0 < value1 ? "Option 1 is the better deal" : "Option 2 is the better deal";
+                  if (deals.length >= 2) {
+                    result = getComparison(deals[0], deals[1]);
                   } else {
-                    result = "Please fill in price and amount for both options.";
+                    result = "Please fill in all fields for both options.";
                   }
                   showDialog(context: context, builder: (_) => AlertDialog(title: const Text("Deal Result"), content: Text(result)));
                 },
@@ -224,23 +305,40 @@ class DealOptionCard extends StatefulWidget {
 
 class _DealOptionCardState extends State<DealOptionCard> {
   late TextEditingController nameController;
-  late TextEditingController priceController;
+  late TextEditingController quantityController;
   late TextEditingController amountController;
+  late TextEditingController priceController;
+  UnitType unitType = UnitType.oz;
 
   @override
   void initState() {
     super.initState();
-    nameController = TextEditingController(text: widget.data.name);
-    priceController = TextEditingController(text: widget.data.price?.toString() ?? '');
-    amountController = TextEditingController(text: widget.data.amount?.toString() ?? '');
+    nameController = TextEditingController(text: widget.data.name ?? "");
+    quantityController = TextEditingController(text: widget.data.quantity?.toString() ?? "");
+    amountController = TextEditingController(text: widget.data.amount?.toString() ?? "");
+    priceController = TextEditingController(text: widget.data.price?.toString() ?? "");
+    unitType = widget.data.unit;
   }
 
   @override
   void dispose() {
     nameController.dispose();
-    priceController.dispose();
+    quantityController.dispose();
     amountController.dispose();
+    priceController.dispose();
     super.dispose();
+  }
+
+  void updateParent() {
+    widget.onChanged(
+      widget.data.copyWith(
+        name: nameController.text,
+        quantity: int.tryParse(quantityController.text),
+        amount: double.tryParse(amountController.text),
+        unit: unitType,
+        price: double.tryParse(priceController.text),
+      ),
+    );
   }
 
   Future<void> pickImage() async {
@@ -249,12 +347,13 @@ class _DealOptionCardState extends State<DealOptionCard> {
     if (pickedFile != null) {
       setState(() {
         widget.onChanged(
-          DealOptionData(
+          widget.data.copyWith(
             name: nameController.text,
-            price: double.tryParse(priceController.text),
+            quantity: int.tryParse(quantityController.text),
             amount: double.tryParse(amountController.text),
+            unit: unitType,
+            price: double.tryParse(priceController.text),
             image: File(pickedFile.path),
-            barcode: widget.data.barcode,
           ),
         );
       });
@@ -278,45 +377,50 @@ class _DealOptionCardState extends State<DealOptionCard> {
             TextField(
               controller: nameController,
               decoration: const InputDecoration(labelText: 'Product Name'),
-              onChanged: (_) => widget.onChanged(
-                DealOptionData(
-                  name: nameController.text,
-                  price: double.tryParse(priceController.text),
-                  amount: double.tryParse(amountController.text),
-                  image: widget.data.image,
-                  barcode: widget.data.barcode,
+              onChanged: (_) => updateParent(),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: quantityController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'QTY'),
+              onChanged: (_) => updateParent(),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Amount'),
+                    onChanged: (_) => updateParent(),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 10),
+                DropdownButton<UnitType>(
+                  value: unitType,
+                  onChanged: (UnitType? newValue) {
+                    setState(() {
+                      unitType = newValue!;
+                      updateParent();
+                    });
+                  },
+                  items: UnitType.values.map((UnitType unit) {
+                    return DropdownMenuItem<UnitType>(
+                      value: unit,
+                      child: Text(unitTypeLabel(unit)),
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             TextField(
               controller: priceController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Price'),
-              onChanged: (_) => widget.onChanged(
-                DealOptionData(
-                  name: nameController.text,
-                  price: double.tryParse(priceController.text),
-                  amount: double.tryParse(amountController.text),
-                  image: widget.data.image,
-                  barcode: widget.data.barcode,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Amount'),
-              onChanged: (_) => widget.onChanged(
-                DealOptionData(
-                  name: nameController.text,
-                  price: double.tryParse(priceController.text),
-                  amount: double.tryParse(amountController.text),
-                  image: widget.data.image,
-                  barcode: widget.data.barcode,
-                ),
-              ),
+              onChanged: (_) => updateParent(),
             ),
             const SizedBox(height: 12),
             Row(
