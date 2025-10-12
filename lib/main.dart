@@ -69,6 +69,27 @@ class DealOrNotHomePage extends StatefulWidget {
 class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
   final ScrollController _scrollController = ScrollController();
 
+  void scrollToNewItem(int newItemIndex, BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final cardWidth = screenWidth * 0.85 + 24; // card + margin
+      final addItemWidth = screenWidth * 0.6 + 24;
+      final visibleWidth = screenWidth;
+
+      // Center the new card, but keep some of AddItem showing
+      double offset = cardWidth * newItemIndex - (visibleWidth - cardWidth) / 2;
+      double maxOffset = _scrollController.position.maxScrollExtent - addItemWidth * 0.4;
+      if (offset > maxOffset) offset = maxOffset;
+      if (offset < 0) offset = 0;
+
+      _scrollController.animateTo(
+        offset,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,20 +119,7 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                         child: AddItemCard(
                           onAdd: () {
                             optionsProvider.addOption();
-                            // Delay to wait for widget rebuild, then scroll to new item
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              double itemWidth = MediaQuery.of(context).size.width * 0.85 + 24; // card width plus horizontal margin
-                              double addItemWidth = MediaQuery.of(context).size.width * 0.6 + 24;
-                              double offset = itemWidth * (optionsProvider.options.length - 1) - itemWidth / 2;
-                              // Don't scroll past the AddItem card, keep a bit showing
-                              double maxScroll = (_scrollController.position.maxScrollExtent - addItemWidth * 0.5);
-                              double target = offset.clamp(0, maxScroll);
-                              _scrollController.animateTo(
-                                target,
-                                duration: const Duration(milliseconds: 500),
-                                curve: Curves.easeOut,
-                              );
-                            });
+                            scrollToNewItem(optionsProvider.options.length - 1, context);
                           },
                         ),
                       );
@@ -127,7 +135,7 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                             data: optionsProvider.options[index],
                             onChanged: (data) => optionsProvider.updateOption(index, data),
                           ),
-                          if (index >= 2) // Show remove 'X' only for options beyond the first two
+                          if (index >= 2)
                             Positioned(
                               top: 8,
                               right: 8,
@@ -151,7 +159,6 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                 onPressed: () {
                   final deals = optionsProvider.options;
                   String result;
-                  // Only compare first two options for now
                   if (deals.length >= 2 && deals[0].price != null && deals[0].amount != null && deals[1].price != null && deals[1].amount != null) {
                     double value0 = deals[0].price! / deals[0].amount!;
                     double value1 = deals[1].price! / deals[1].amount!;
