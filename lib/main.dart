@@ -59,8 +59,15 @@ class DealOptionData {
   DealOptionData({this.name, this.price, this.amount, this.image, this.barcode});
 }
 
-class DealOrNotHomePage extends StatelessWidget {
+class DealOrNotHomePage extends StatefulWidget {
   const DealOrNotHomePage({super.key});
+
+  @override
+  State<DealOrNotHomePage> createState() => _DealOrNotHomePageState();
+}
+
+class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
+  final ScrollController _scrollController = ScrollController();
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +86,7 @@ class DealOrNotHomePage extends StatelessWidget {
               const SizedBox(height: 12),
               Expanded(
                 child: ListView.builder(
+                  controller: _scrollController,
                   scrollDirection: Axis.horizontal,
                   itemCount: optionsProvider.options.length + (optionsProvider.options.length < optionsProvider.maxOptions ? 1 : 0),
                   itemBuilder: (context, index) {
@@ -88,7 +96,23 @@ class DealOrNotHomePage extends StatelessWidget {
                         width: MediaQuery.of(context).size.width * 0.6,
                         margin: const EdgeInsets.symmetric(horizontal: 12),
                         child: AddItemCard(
-                          onAdd: optionsProvider.addOption,
+                          onAdd: () {
+                            optionsProvider.addOption();
+                            // Delay to wait for widget rebuild, then scroll to new item
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              double itemWidth = MediaQuery.of(context).size.width * 0.85 + 24; // card width plus horizontal margin
+                              double addItemWidth = MediaQuery.of(context).size.width * 0.6 + 24;
+                              double offset = itemWidth * (optionsProvider.options.length - 1) - itemWidth / 2;
+                              // Don't scroll past the AddItem card, keep a bit showing
+                              double maxScroll = (_scrollController.position.maxScrollExtent - addItemWidth * 0.5);
+                              double target = offset.clamp(0, maxScroll);
+                              _scrollController.animateTo(
+                                target,
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.easeOut,
+                              );
+                            });
+                          },
                         ),
                       );
                     }
