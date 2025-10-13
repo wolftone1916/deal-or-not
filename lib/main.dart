@@ -246,8 +246,8 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                     } else if (differences[index] != null) {
                       double diff = differences[index]!;
                       double pricePerUnit = diff + (bestIndex != null ? differences[bestIndex]! : 0.0);
-                      String formattedDiff = "\$${diff.abs().toStringAsFixed(2)} per $displayUnit";
-                      String formattedPrice = "\$${pricePerUnit.toStringAsFixed(2)} per $displayUnit";
+                      String formattedDiff = "\$\${diff.abs().toStringAsFixed(2)} per $displayUnit";
+                      String formattedPrice = "\$\${pricePerUnit.toStringAsFixed(2)} per $displayUnit";
                       TextStyle style = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
 
                       if (bestIndex == index) {
@@ -266,7 +266,7 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                             ),
                             if (nextBestDiff > 0.0)
                               Text(
-                                "You save \$${nextBestDiff.toStringAsFixed(2)} per $displayUnit compared to other options.",
+                                "You save \$\${nextBestDiff.toStringAsFixed(2)} per $displayUnit compared to other options.",
                                 style: style.copyWith(color: Colors.green[700]),
                               ),
                             Text(
@@ -319,8 +319,8 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                               ),
                             ),
                         ],
-                      ),
-                    );
+                      );
+                    }
                   },
                 ),
               ),
@@ -339,7 +339,7 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                     result = "Please fill in all fields for both options.";
                   } else {
                     final displayUnit = displayUnitName(deals[bestIndex].unit);
-                    result = "Option \\${bestIndex + 1} is the best deal!\nUnit price: \\$${(differences[bestIndex]! + (differences[bestIndex] ?? 0.0)).toStringAsFixed(2)} per $displayUnit";
+                    result = "Option \\$bestIndex! + 1 is the best deal!\nUnit price: \\$\${(differences[bestIndex]! + (differences[bestIndex] ?? 0.0)).toStringAsFixed(2)} per $displayUnit";
                   }
                   showDialog(context: context, builder: (_) => AlertDialog(title: const Text("Deal Result"), content: Text(result)));
                 },
