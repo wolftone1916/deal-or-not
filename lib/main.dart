@@ -28,20 +28,19 @@ class DealOrNotApp extends StatelessWidget {
 enum UnitType { oz, g, lbs, kg, ml, l }
 
 double convertToBase(UnitType unit, double value) {
-  // All weight units to grams, all volume units to milliliters
   switch (unit) {
     case UnitType.oz:
-      return value * 28.3495; // oz to grams
+      return value * 28.3495;
     case UnitType.lbs:
-      return value * 453.592; // lbs to grams
+      return value * 453.592;
     case UnitType.kg:
-      return value * 1000.0; // kg to grams
+      return value * 1000.0;
     case UnitType.g:
-      return value; // grams
+      return value;
     case UnitType.ml:
-      return value; // milliliters
+      return value;
     case UnitType.l:
-      return value * 1000.0; // liters to milliliters
+      return value * 1000.0;
   }
 }
 
@@ -59,6 +58,19 @@ String unitTypeLabel(UnitType unit) {
       return "ml";
     case UnitType.l:
       return "l";
+  }
+}
+
+String displayUnitName(UnitType unit) {
+  switch (unit) {
+    case UnitType.oz:
+    case UnitType.lbs:
+    case UnitType.kg:
+    case UnitType.g:
+      return "gram";
+    case UnitType.ml:
+    case UnitType.l:
+      return "milliliter";
   }
 }
 
@@ -156,23 +168,33 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
     });
   }
 
-  String getComparison(DealOptionData a, DealOptionData b) {
-    if (a.price == null || a.amount == null || a.quantity == null || b.price == null || b.amount == null || b.quantity == null) {
-      return "Please fill in all fields for both options.";
-    }
-    // Normalize to price per base unit per item
-    double aBaseAmount = convertToBase(a.unit, a.amount!);
-    double bBaseAmount = convertToBase(b.unit, b.amount!);
-    double aPerUnit = a.price! / (aBaseAmount * (a.quantity ?? 1));
-    double bPerUnit = b.price! / (bBaseAmount * (b.quantity ?? 1));
+  Tuple2<int?, List<double?>> getDealComparisons(List<DealOptionData> deals) {
+    List<double?> pricesPerUnit = deals.map((deal) {
+      if (deal.price == null || deal.amount == null || deal.quantity == null || deal.amount == 0 || deal.quantity == 0) {
+        return null;
+      }
+      double baseAmount = convertToBase(deal.unit, deal.amount!);
+      double totalBase = baseAmount * deal.quantity!;
+      return deal.price! / totalBase;
+    }).toList();
 
-    if (aPerUnit < bPerUnit) {
-      return "Option 1 is the better deal";
-    } else if (bPerUnit < aPerUnit) {
-      return "Option 2 is the better deal";
-    } else {
-      return "Both options are the same deal";
+    int? bestIndex;
+    double? bestValue;
+    for (int i = 0; i < pricesPerUnit.length; i++) {
+      if (pricesPerUnit[i] != null) {
+        if (bestValue == null || pricesPerUnit[i]! < bestValue) {
+          bestValue = pricesPerUnit[i];
+          bestIndex = i;
+        }
+      }
     }
+
+    List<double?> differences = pricesPerUnit.map((price) {
+      if (bestValue == null || price == null) return null;
+      return price - bestValue;
+    }).toList();
+
+    return Tuple2(bestIndex, differences);
   }
 
   @override
@@ -187,6 +209,9 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
       ),
       body: Consumer<DealOptionsProvider>(
         builder: (context, optionsProvider, child) {
+          final deals = optionsProvider.options;
+          final Tuple2<int?, List<double?>> comparison = getDealComparisons(deals);
+
           return Column(
             children: [
               const SizedBox(height: 12),
@@ -194,9 +219,9 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                 child: ListView.builder(
                   controller: _scrollController,
                   scrollDirection: Axis.horizontal,
-                  itemCount: optionsProvider.options.length + (optionsProvider.options.length < optionsProvider.maxOptions ? 1 : 0),
+                  itemCount: deals.length + (deals.length < optionsProvider.maxOptions ? 1 : 0),
                   itemBuilder: (context, index) {
-                    if (index == optionsProvider.options.length && optionsProvider.options.length < optionsProvider.maxOptions) {
+                    if (index == deals.length && deals.length < optionsProvider.maxOptions) {
                       return Container(
                         width: MediaQuery.of(context).size.width * 0.6,
                         margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -208,6 +233,67 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                         ),
                       );
                     }
+                    final displayUnit = displayUnitName(deals[index].unit);
+                    final bestIndex = comparison.item1;
+                    final differences = comparison.item2;
+
+                    Widget resultWidget;
+                    if (deals[index].price == null || deals[index].amount == null || deals[index].quantity == null || deals[index].amount == 0 || deals[index].quantity == 0) {
+                      resultWidget = Text(
+                        "Please fill all fields above.",
+                        style: TextStyle(fontSize: 22, color: Colors.grey, fontWeight: FontWeight.bold),
+                      );
+                    } else if (differences[index] != null) {
+                      double diff = differences[index]!;
+                      double pricePerUnit = diff + (bestIndex != null ? differences[bestIndex]! : 0.0);
+                      String formattedDiff = "\$${diff.abs().toStringAsFixed(2)} per $displayUnit";
+                      String formattedPrice = "\$${pricePerUnit.toStringAsFixed(2)} per $displayUnit";
+                      TextStyle style = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
+
+                      if (bestIndex == index) {
+                        double nextBestDiff = 0.0;
+                        for (int i = 0; i < differences.length; i++) {
+                          if (i != index && differences[i] != null && (nextBestDiff == 0.0 || differences[i]! < nextBestDiff)) {
+                            nextBestDiff = differences[i]!;
+                          }
+                        }
+                        resultWidget = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Best Deal!",
+                              style: style.copyWith(color: Colors.green[700]),
+                            ),
+                            if (nextBestDiff > 0.0)
+                              Text(
+                                "You save \$${nextBestDiff.toStringAsFixed(2)} per $displayUnit compared to other options.",
+                                style: style.copyWith(color: Colors.green[700]),
+                              ),
+                            Text(
+                              "Unit price: $formattedPrice",
+                              style: style.copyWith(color: Colors.green[700], fontSize: 18, fontWeight: FontWeight.normal),
+                            ),
+                          ],
+                        );
+                      } else {
+                        resultWidget = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "More expensive by $formattedDiff compared to the best deal.",
+                              style: style.copyWith(color: Colors.red[700]),
+                            ),
+                            Text(
+                              "Unit price: $formattedPrice",
+                              style: style.copyWith(color: Colors.red[700], fontSize: 18, fontWeight: FontWeight.normal),
+                            ),
+                          ],
+                        );
+                      }
+                    } else {
+                      resultWidget = SizedBox.shrink();
+                    }
+
                     return Container(
                       width: MediaQuery.of(context).size.width * 0.85,
                       margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -215,8 +301,9 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
                         children: [
                           DealOptionCard(
                             index: index,
-                            data: optionsProvider.options[index],
+                            data: deals[index],
                             onChanged: (data) => optionsProvider.updateOption(index, data),
+                            resultWidget: resultWidget,
                           ),
                           if (index >= 2)
                             Positioned(
@@ -240,12 +327,19 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
               const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: () {
-                  final deals = optionsProvider.options;
+                  if (deals.length < 2) {
+                    showDialog(context: context, builder: (_) => const AlertDialog(title: Text("Deal Result"), content: Text("Please fill in all fields for both options.")));
+                    return;
+                  }
+                  final Tuple2<int?, List<double?>> comparison = getDealComparisons(deals);
+                  final bestIndex = comparison.item1;
+                  final differences = comparison.item2;
                   String result;
-                  if (deals.length >= 2) {
-                    result = getComparison(deals[0], deals[1]);
-                  } else {
+                  if (bestIndex == null) {
                     result = "Please fill in all fields for both options.";
+                  } else {
+                    final displayUnit = displayUnitName(deals[bestIndex].unit);
+                    result = "Option \\${bestIndex + 1} is the best deal!\nUnit price: \\$${(differences[bestIndex]! + (differences[bestIndex] ?? 0.0)).toStringAsFixed(2)} per $displayUnit";
                   }
                   showDialog(context: context, builder: (_) => AlertDialog(title: const Text("Deal Result"), content: Text(result)));
                 },
@@ -258,6 +352,12 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
       ),
     );
   }
+}
+
+class Tuple2<T1, T2> {
+  final T1 item1;
+  final T2 item2;
+  Tuple2(this.item1, this.item2);
 }
 
 class AddItemCard extends StatelessWidget {
@@ -296,8 +396,15 @@ class DealOptionCard extends StatefulWidget {
   final int index;
   final DealOptionData data;
   final ValueChanged<DealOptionData> onChanged;
+  final Widget? resultWidget;
 
-  const DealOptionCard({super.key, required this.index, required this.data, required this.onChanged});
+  const DealOptionCard({
+    super.key,
+    required this.index,
+    required this.data,
+    required this.onChanged,
+    this.resultWidget,
+  });
 
   @override
   State<DealOptionCard> createState() => _DealOptionCardState();
@@ -377,6 +484,7 @@ class _DealOptionCardState extends State<DealOptionCard> {
             TextField(
               controller: nameController,
               decoration: const InputDecoration(labelText: 'Product Name'),
+              style: const TextStyle(fontSize: 18),
               onChanged: (_) => updateParent(),
             ),
             const SizedBox(height: 10),
@@ -384,6 +492,7 @@ class _DealOptionCardState extends State<DealOptionCard> {
               controller: quantityController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'QTY'),
+              style: const TextStyle(fontSize: 18),
               onChanged: (_) => updateParent(),
             ),
             const SizedBox(height: 10),
@@ -394,6 +503,7 @@ class _DealOptionCardState extends State<DealOptionCard> {
                     controller: amountController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Amount'),
+                    style: const TextStyle(fontSize: 18),
                     onChanged: (_) => updateParent(),
                   ),
                 ),
@@ -409,7 +519,7 @@ class _DealOptionCardState extends State<DealOptionCard> {
                   items: UnitType.values.map((UnitType unit) {
                     return DropdownMenuItem<UnitType>(
                       value: unit,
-                      child: Text(unitTypeLabel(unit)),
+                      child: Text(unitTypeLabel(unit), style: const TextStyle(fontSize: 18)),
                     );
                   }).toList(),
                 ),
@@ -420,9 +530,10 @@ class _DealOptionCardState extends State<DealOptionCard> {
               controller: priceController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Price'),
+              style: const TextStyle(fontSize: 18),
               onChanged: (_) => updateParent(),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -442,6 +553,8 @@ class _DealOptionCardState extends State<DealOptionCard> {
                   ),
               ],
             ),
+            const SizedBox(height: 18),
+            if (widget.resultWidget != null) widget.resultWidget!,
           ],
         ),
       ),
