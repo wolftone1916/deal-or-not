@@ -84,6 +84,47 @@ class DealOptionsProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  // Returns the difference for the option at the given index
+  // Returns null if the option is incomplete or if there are no other complete options
+  // Positive difference means more expensive than best
+  // Negative difference means this is the best (or tied for best)
+  double? getPriceDifference(int index) {
+    final option = options[index];
+    if (!option.isComplete()) {
+      return null;
+    }
+
+    final currentPrice = option.getPerUnitPrice()!;
+    
+    // Get all complete options with their per-unit prices
+    final List<double> allPrices = [];
+    for (var opt in options) {
+      if (opt.isComplete()) {
+        allPrices.add(opt.getPerUnitPrice()!);
+      }
+    }
+
+    if (allPrices.isEmpty) {
+      return null;
+    }
+
+    allPrices.sort();
+    final bestPrice = allPrices.first;
+    
+    if (currentPrice == bestPrice) {
+      // This is the best deal, show difference from next best
+      if (allPrices.length > 1) {
+        final nextBestPrice = allPrices[1];
+        return -(nextBestPrice - bestPrice); // Negative to indicate best
+      } else {
+        return 0.0; // Only one complete option
+      }
+    } else {
+      // Not the best deal, show difference from best
+      return currentPrice - bestPrice;
+    }
+  }
 }
 
 class DealOptionData {
@@ -123,6 +164,19 @@ class DealOptionData {
       image: image ?? this.image,
       barcode: barcode ?? this.barcode,
     );
+  }
+
+  // Returns null if any required field is missing
+  double? getPerUnitPrice() {
+    if (price == null || amount == null || quantity == null) {
+      return null;
+    }
+    double baseAmount = convertToBase(unit, amount!);
+    return price! / (baseAmount * quantity!);
+  }
+
+  bool isComplete() {
+    return price != null && amount != null && quantity != null;
   }
 }
 
@@ -362,89 +416,107 @@ class _DealOptionCardState extends State<DealOptionCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(18.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Option ${widget.index + 1}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.deepPurple)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Product Name'),
-              onChanged: (_) => updateParent(),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: quantityController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'QTY'),
-              onChanged: (_) => updateParent(),
-            ),
-            const SizedBox(height: 10),
-            Row(
+    return Consumer<DealOptionsProvider>(
+      builder: (context, optionsProvider, child) {
+        final difference = optionsProvider.getPriceDifference(widget.index);
+        
+        return Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(18.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: amountController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Amount'),
-                    onChanged: (_) => updateParent(),
-                  ),
+                Text('Option ${widget.index + 1}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.deepPurple)),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Product Name'),
+                  onChanged: (_) => updateParent(),
                 ),
-                const SizedBox(width: 10),
-                DropdownButton<UnitType>(
-                  value: unitType,
-                  onChanged: (UnitType? newValue) {
-                    setState(() {
-                      unitType = newValue!;
-                      updateParent();
-                    });
-                  },
-                  items: UnitType.values.map((UnitType unit) {
-                    return DropdownMenuItem<UnitType>(
-                      value: unit,
-                      child: Text(unitTypeLabel(unit)),
-                    );
-                  }).toList(),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: quantityController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'QTY'),
+                  onChanged: (_) => updateParent(),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: priceController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Price'),
-              onChanged: (_) => updateParent(),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: pickImage,
-                  icon: const Icon(Icons.image),
-                  label: const Text('Add Photo'),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: amountController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Amount'),
+                        onChanged: (_) => updateParent(),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    DropdownButton<UnitType>(
+                      value: unitType,
+                      onChanged: (UnitType? newValue) {
+                        setState(() {
+                          unitType = newValue!;
+                          updateParent();
+                        });
+                      },
+                      items: UnitType.values.map((UnitType unit) {
+                        return DropdownMenuItem<UnitType>(
+                          value: unit,
+                          child: Text(unitTypeLabel(unit)),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ),
-                if (widget.data.image != null)
-                  SizedBox(
-                    width: 60,
-                    height: 60,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(widget.data.image!, fit: BoxFit.cover),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Price'),
+                  onChanged: (_) => updateParent(),
+                ),
+                if (difference != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'Difference: ${difference >= 0 ? '+' : ''}${difference.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: difference < 0 ? Colors.green : Colors.red,
+                      ),
                     ),
                   ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: pickImage,
+                      icon: const Icon(Icons.image),
+                      label: const Text('Add Photo'),
+                    ),
+                    if (widget.data.image != null)
+                      SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(widget.data.image!, fit: BoxFit.cover),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
