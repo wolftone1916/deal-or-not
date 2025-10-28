@@ -173,7 +173,7 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
       if (offset > maxOffset) offset = maxOffset;
       if (offset < 0) offset = 0;
 
-      _scroll_controller.animateTo(
+      _scrollController.animateTo(
         offset,
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeOut,
@@ -248,7 +248,7 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
               const SizedBox(height: 12),
               Expanded(
                 child: ListView.builder(
-                  controller: _scroll_controller,
+                  controller: _scrollController,
                   scrollDirection: Axis.horizontal,
                   itemCount: optionsProvider.options.length +
                       (optionsProvider.options.length <
