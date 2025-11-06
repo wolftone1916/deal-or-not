@@ -65,6 +65,13 @@ String unitTypeLabel(UnitType unit) {
   throw StateError('Unhandled UnitType: $unit');
 }
 
+String formatMoneyDifference(double value) {
+  final absVal = value.abs();
+  const int decimals = 2;
+  final sign = value >= 0 ? '+' : '-';
+  return '$sign\$${absVal.toStringAsFixed(decimals)}';
+}
+
 class DealOptionsProvider extends ChangeNotifier {
   final List<DealOptionData> options = [DealOptionData(), DealOptionData()];
   int get maxOptions => 10;
@@ -195,9 +202,11 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
     List<double?> result = List.filled(perUnitPrices.length, null);
 
     if (minPrice == null) {
-      setState(() {
-        differences = result;
-      });
+      if (mounted) {
+        setState(() {
+          differences = result;
+        });
+      }
       return;
     }
 
@@ -208,20 +217,29 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
       final price = perUnitPrices[i];
       if (price == null) continue;
 
+      double diff;
       if (price == minPrice) {
         if (sortedPrices.length > 1) {
           final nextBest = sortedPrices[1];
-          result[i] = -(nextBest - price);
+          diff = -(nextBest - price);
         } else {
-          result[i] = 0.0;
+          diff = 0.0;
         }
       } else {
-        result[i] = price - minPrice;
+        diff = price - minPrice;
+      }
+      
+      // Sanitize non-finite values
+      if (diff.isFinite) {
+        result[i] = diff;
       }
     }
-    setState(() {
-      differences = result;
-    });
+    
+    if (mounted) {
+      setState(() {
+        differences = result;
+      });
+    }
   }
 
   void clearDifferences() {
@@ -470,8 +488,7 @@ class _DealOptionCardState extends State<DealOptionCard> {
     String? diffText;
     if (widget.showDifference && widget.difference != null) {
       diffColor = widget.difference! < 0 ? Colors.green : Colors.red;
-      diffText =
-          'Difference: ${widget.difference! >= 0 ? '+' : ''}${widget.difference!.toStringAsFixed(2)}';
+      diffText = 'Difference: ${formatMoneyDifference(widget.difference!)}';
     }
 
     return Card(
