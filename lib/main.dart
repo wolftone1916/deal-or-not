@@ -211,7 +211,8 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
       if (price == minPrice) {
         if (sortedPrices.length > 1) {
           final nextBest = sortedPrices[1];
-          // Calculate percentage difference: (nextBest - minPrice) / minPrice * 100
+          // Calculate percentage: how much better this deal is compared to next best
+          // Negative value indicates this is the better/cheaper option
           result[i] = -((nextBest - price) / price * 100);
         } else {
           result[i] = 0.0;
