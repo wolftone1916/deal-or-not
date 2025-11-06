@@ -67,7 +67,7 @@ String unitTypeLabel(UnitType unit) {
 
 String formatMoneyDifference(double value) {
   final absVal = value.abs();
-  int decimals = absVal >= 1.0 ? 2 : 2;
+  const int decimals = 2;
   final sign = value >= 0 ? '+' : '-';
   return '$sign\$${absVal.toStringAsFixed(decimals)}';
 }
