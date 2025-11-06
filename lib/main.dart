@@ -42,6 +42,8 @@ double convertToBase(UnitType unit, double value) {
     case UnitType.l:
       return value * 1000.0;
   }
+  // Should be unreachable if all enum values are handled, but keeps analyzer happy
+  throw StateError('Unhandled UnitType: $unit');
 }
 
 String unitTypeLabel(UnitType unit) {
@@ -59,6 +61,8 @@ String unitTypeLabel(UnitType unit) {
     case UnitType.l:
       return "l";
   }
+  // Should be unreachable if all enum values are handled, but keeps analyzer happy
+  throw StateError('Unhandled UnitType: $unit');
 }
 
 class DealOptionsProvider extends ChangeNotifier {
