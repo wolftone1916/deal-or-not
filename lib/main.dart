@@ -194,7 +194,7 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
         .fold<double?>(null, (prev, e) => prev == null ? e : (e! < prev ? e : prev));
     List<double?> result = List.filled(perUnitPrices.length, null);
 
-    if (minPrice == null) {
+    if (minPrice == null || minPrice == 0) {
       setState(() {
         differences = result;
       });
@@ -211,12 +211,14 @@ class _DealOrNotHomePageState extends State<DealOrNotHomePage> {
       if (price == minPrice) {
         if (sortedPrices.length > 1) {
           final nextBest = sortedPrices[1];
-          result[i] = -(nextBest - price);
+          // Calculate percentage difference: (nextBest - minPrice) / minPrice * 100
+          result[i] = -((nextBest - price) / price * 100);
         } else {
           result[i] = 0.0;
         }
       } else {
-        result[i] = price - minPrice;
+        // Calculate percentage difference: (price - minPrice) / minPrice * 100
+        result[i] = (price - minPrice) / minPrice * 100;
       }
     }
     setState(() {
@@ -471,7 +473,7 @@ class _DealOptionCardState extends State<DealOptionCard> {
     if (widget.showDifference && widget.difference != null) {
       diffColor = widget.difference! < 0 ? Colors.green : Colors.red;
       diffText =
-          'Difference: ${widget.difference! >= 0 ? '+' : ''}${widget.difference!.toStringAsFixed(2)}';
+          'Difference: ${widget.difference! >= 0 ? '+' : ''}${widget.difference!.toStringAsFixed(2)}%';
     }
 
     return Card(
